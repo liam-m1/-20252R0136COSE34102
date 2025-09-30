@@ -542,12 +542,18 @@ setnice(int pid, int nice)
     struct proc *p;
     acquire(&ptable.lock);
 
-    /* ******************** */
-    /* * WRITE YOUR CODE    */
-    /* ******************** */
-    printf(pid);
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+       // if process pid is same as passed pid
+      if(p->pid == pid) {
+        // set priority value
+        p->priority = nice;
+        return 0;
+      }
+    }
+    
 
     release(&ptable.lock);
+    // pid not found
     return -1;
 }
 
@@ -556,12 +562,18 @@ getnice(int pid)
 {
     struct proc *p;
     acquire(&ptable.lock);
-    
-    /* ******************** */
-    /* * WRITE YOUR CODE    */
-    /* ******************** */
+  
+      // check every process
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+       // if process pid is same as passed pid
+      if(p->pid == pid) {
+        // return priority value
+        return p->priority;
+      }
+    }
 
     release(&ptable.lock);
+    // pid not found
     return -1;
 }
 
