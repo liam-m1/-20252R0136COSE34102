@@ -116,5 +116,6 @@ sys_getnice(void)
 void
 sys_ps(void)
 {
-  return ps();
+  ps();
+  return;
 }
