@@ -575,7 +575,6 @@ getnice(int pid)
        // if process pid is same as passed pid
       if(p->pid == pid) {
         release(&ptable.lock);
-        // return priority value
         return p->priority;
       }
     }
@@ -591,9 +590,43 @@ ps(void)
     struct proc *p;
     acquire(&ptable.lock);
     cprintf("name\tpid\tppid\tmem\tprio\tstate\n");
-
+      // check every process
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-      
+      // only print used processess
+      if(p->state == UNUSED) {
+        continue;
+      }
+
+      // initalize ppid variable
+      int ppid = -1;
+      // check if parent pid is valid (check for init)
+        if(p->parent != UNUSED) {
+          ppid = p->parent->pid;
+        }
+
+      // print p information up to priority
+      cprintf("%s\t%d\t%d\t%d\t%d\t",
+              p->name, p->pid, ppid, p->sz, p->priority);
+
+      // assign num value to pstate enum
+      enum procstate pState = p->state;
+
+      // use num value to print correct pState
+      switch(pState) {
+        case 2:
+          cprintf("SLEEPING\n");
+          break;
+        case 3:
+          cprintf("RUNNABLE\n");
+          break;
+        case 4:
+          cprintf("RUNNING\n");
+          break;
+          // for every other case (just for this exercise)
+        default:
+          cprintf("Not Applicable");
+          break;
+      }
     }
 
     release(&ptable.lock);
