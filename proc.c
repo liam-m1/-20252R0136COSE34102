@@ -124,6 +124,9 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
+
+  // assign priority 5
+  p->priority = 5;
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -199,6 +202,9 @@ fork(void)
   np->sz = curproc->sz;
   np->parent = curproc;
   *np->tf = *curproc->tf;
+
+  // copy priority from parent
+  np->priority = curproc->priority;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -568,13 +574,12 @@ getnice(int pid)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
        // if process pid is same as passed pid
       if(p->pid == pid) {
-        int temp = p->priority;
         release(&ptable.lock);
         // return priority value
-        return temp;
+        return p->priority;
       }
     }
-    
+
     release(&ptable.lock);
     // pid not found
     return -1;
