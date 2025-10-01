@@ -547,10 +547,11 @@ setnice(int pid, int nice)
       if(p->pid == pid) {
         // set priority value
         p->priority = nice;
+        release(&ptable.lock);
+        // return sucess
         return 0;
       }
     }
-    
 
     release(&ptable.lock);
     // pid not found
@@ -567,11 +568,13 @@ getnice(int pid)
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
        // if process pid is same as passed pid
       if(p->pid == pid) {
+        int temp = p->priority;
+        release(&ptable.lock);
         // return priority value
-        return p->priority;
+        return temp;
       }
     }
-
+    
     release(&ptable.lock);
     // pid not found
     return -1;
@@ -584,9 +587,9 @@ ps(void)
     acquire(&ptable.lock);
     cprintf("name\tpid\tppid\tmem\tprio\tstate\n");
 
-    /* ******************** */
-    /* * WRITE YOUR CODE    */
-    /* ******************** */
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+      
+    }
 
     release(&ptable.lock);
     return;
