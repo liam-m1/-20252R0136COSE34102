@@ -12,6 +12,15 @@ struct {
   struct proc proc[NPROC];
 } ptable;
 
+// ready queue struc
+struct ready_queue {
+  // pointer to head
+  struct proc* head;
+  // lock for queue
+  struct spinlock lock;
+} rdyQ;
+
+
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -19,6 +28,9 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+struct proc* queue_pop(struct ready_queue* queue);
+void queue_push(struct ready_queue* queue, struct proc* p);
 
 void
 pinit(void)
@@ -340,12 +352,18 @@ scheduler(void)
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+        // // Loop over process table looking for process to run.
+        // acquire(&ptable.lock);
 
+    
+    // pop highest priority in queue into process
+    p = queue_pop(&rdyQ);
+
+    // check if CPU is idle
+    if(p != 0) {
+      // no processes i
+      continue;
+    }
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -360,10 +378,9 @@ scheduler(void)
       // It should have changed its p->state before coming back.
       c->proc = 0;
     }
-    release(&ptable.lock);
 
-  }
 }
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -566,20 +583,24 @@ setnice(int pid, int nice)
 
  // ready queue push function
 void
-ready_push(struct proc** head, struct proc* p) {
+queue_push(struct ready_queue* queue, struct proc* p) {
+  acquire(&rdyQ.lock);
+
   // if queue is highest priority or empty queue
-  if(*head == 0 || p->priority < (*head)->priority) {
-    p->next = *head;
-    *head = p;
+  if(queue->head == 0 || p->priority < queue->head->priority) {
+    p->next = queue->head;
+    queue->head= p;
+    release(&rdyQ.lock);
     return;
   }
   
-  struct proc* temp = *head;
+  struct proc* temp = queue->head;
   while(temp->next != 0 && temp->next->priority <= p->priority) {
       // if prio is less than
     if(temp->next->priority < p->priority) {
       p->next = temp->next;
       temp->next = p;
+      release(&rdyQ.lock);
       return;
     }
       // if prios equal, compare PID
@@ -587,6 +608,7 @@ ready_push(struct proc** head, struct proc* p) {
         if(p->pid > temp->next->pid) {
           p->next = temp->next;
           temp->next = p;
+          release(&rdyQ.lock);
           return;
       }
       // if smaller, continue
@@ -597,13 +619,31 @@ ready_push(struct proc** head, struct proc* p) {
   // if tail insert
   p->next = temp->next;
   temp->next = p;
+
+  release(&rdyQ.lock);
   return;
 }
 
 // ready queue pop function
 struct proc*
-queue_pop(struct proc** head) {
-  struct proc* temp = *head;
-  *head = temp->next;
+queue_pop(struct ready_queue* queue) {
+
+  acquire(&rdyQ.lock);
+  // initaizlize null proc
+  struct proc* temp = 0;
+
+  // return null if empty queue empty
+  if(queue->head == 0) {
+    release(&rdyQ.lock);
+    return temp;
+  }
+
+    // else set temp to head, remove head node
+  temp = queue->head;
+  queue->head = temp->next;
+  temp->next = 0;
+  
+  release(&rdyQ.lock);
   return temp;
+  
 }
