@@ -53,14 +53,6 @@ struct proc {
   struct proc* next;           // point to next node in ready queue
 };
 
-// ready queue struc
-struct ready_queue {
-  // pointer to head
-  struct proc* head;
-  // lock for queue
-  struct spinlock lock;
-};
-
 // Process memory is laid out contiguously, low addresses first:
 //   text
 //   original data and bss
