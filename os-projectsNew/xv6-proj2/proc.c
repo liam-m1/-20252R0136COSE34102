@@ -562,3 +562,48 @@ setnice(int pid, int nice)
   release(&ptable.lock);
   return -1;
 }
+
+
+ // ready queue push function
+void
+ready_push(struct proc** head, struct proc* p) {
+  // if queue is highest priority or empty queue
+  if(*head == 0 || p->priority < (*head)->priority) {
+    p->next = *head;
+    *head = p;
+    return;
+  }
+  
+  struct proc* temp = *head;
+  while(temp->next != 0 && temp->next->priority <= p->priority) {
+      // if prio is less than
+    if(temp->next->priority < p->priority) {
+      p->next = temp->next;
+      temp->next = p;
+      return;
+    }
+      // if prios equal, compare PID
+    else if (temp->next->priority == p->priority) {
+        if(p->pid > temp->next->pid) {
+          p->next = temp->next;
+          temp->next = p;
+          return;
+      }
+      // if smaller, continue
+    }
+    temp = temp->next;
+  }
+
+  // if tail insert
+  p->next = temp->next;
+  temp->next = p;
+  return;
+}
+
+// ready queue pop function
+struct proc*
+queue_pop(struct proc** head) {
+  struct proc* temp = *head;
+  *head = temp->next;
+  return temp;
+}
