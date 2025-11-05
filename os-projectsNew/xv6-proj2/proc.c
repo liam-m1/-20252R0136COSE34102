@@ -28,6 +28,7 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+// queue prototypes
 struct proc* queue_pop(struct ready_queue* queue);
 void queue_push(struct ready_queue* queue, struct proc* p);
 
@@ -39,8 +40,6 @@ pinit(void)
   initlock(&rdyQ.lock, "rdyQ");
   rdyQ.head = 0; //
 }
-
-
 
 // Must be called with interrupts disabled
 int
@@ -164,7 +163,6 @@ userinit(void)
 
   // add to ready queue
   queue_push(&rdyQ, p);
-
 }
 
 // Grow current process's memory by n bytes.
@@ -347,7 +345,6 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -379,7 +376,6 @@ scheduler(void)
       release (&ptable.lock); 
   }
 }
-
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
@@ -588,9 +584,7 @@ setnice(int pid, int nice)
   return -1;
 }
 
-
-
- // ready queue push function
+// ready queue push function
 void
 queue_push(struct ready_queue* queue, struct proc* p) {
   acquire(&rdyQ.lock);
@@ -654,5 +648,4 @@ queue_pop(struct ready_queue* queue) {
   
   release(&rdyQ.lock);
   return temp;
-  
 }
