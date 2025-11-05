@@ -20,7 +20,6 @@ struct ready_queue {
   struct spinlock lock;
 } rdyQ;
 
-
 static struct proc *initproc;
 
 int nextpid = 1;
@@ -36,7 +35,12 @@ void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
+  // initialize queue lock
+  initlock(&rdyQ.lock, "rdyQ");
+  rdyQ.head = 0; //
 }
+
+
 
 // Must be called with interrupts disabled
 int
@@ -155,16 +159,12 @@ userinit(void)
   p->cwd = namei("/");
 
   p->priority = 5;
+  // initalize next to null
+  p->next = 0;
 
-  // this assignment to p->state lets other cores
-  // run this process. the acquire forces the above
-  // writes to be visible, and the lock is also needed
-  // because the assignment might not be atomic.
-  acquire(&ptable.lock);
+  // add to ready queue
+  queue_push(&rdyQ, p);
 
-  p->state = RUNNABLE;
-
-  release(&ptable.lock);
 }
 
 // Grow current process's memory by n bytes.
@@ -188,9 +188,6 @@ growproc(int n)
   return 0;
 }
 
-// Create a new process copying p as the parent.
-// Sets up stack to return as if from system call.
-// Caller must set state of returned proc to RUNNABLE.
 int
 fork(void)
 {
@@ -221,6 +218,8 @@ fork(void)
   } else {
     np->priority = curproc->priority + 1;
   }
+  // initalize next to null
+  np->next = 0;
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -234,11 +233,11 @@ fork(void)
 
   pid = np->pid;
 
-  acquire(&ptable.lock);
+  // push onto queue
+  queue_push(&rdyQ, np);
 
-  np->state = RUNNABLE;
-
-  release(&ptable.lock);
+  // yield back to scheduler
+  yield();
 
   return pid;
 }
@@ -347,21 +346,20 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-        // // Loop over process table looking for process to run.
-        // acquire(&ptable.lock);
-
+    acquire(&ptable.lock);
     
     // pop highest priority in queue into process
     p = queue_pop(&rdyQ);
 
     // check if CPU is idle
-    if(p != 0) {
-      // no processes i
+    if(p == 0) { 
+      release (&ptable.lock); 
       continue;
     }
       // Switch to chosen process.  It is the process's job
@@ -377,8 +375,9 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       c->proc = 0;
-    }
 
+      release (&ptable.lock); 
+  }
 }
 
 
@@ -414,6 +413,9 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+
+  queue_push(&rdyQ, myproc());
+
   sched();
   release(&ptable.lock);
 }
@@ -462,10 +464,11 @@ sleep(void *chan, struct spinlock *lk)
     acquire(&ptable.lock);  //DOC: sleeplock1
     release(lk);
   }
+
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-
+  
   sched();
 
   // Tidy up.
@@ -485,10 +488,12 @@ static void
 wakeup1(void *chan)
 {
   struct proc *p;
-
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      // add to ready queue
+      queue_push(&rdyQ, p);
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -513,8 +518,11 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
-        p->state = RUNNABLE;
+      if(p->state == SLEEPING) { // a
+         p->state = RUNNABLE; 
+        // add to ready queue
+        queue_push(&rdyQ, p);
+      }
       release(&ptable.lock);
       return 0;
     }
@@ -579,6 +587,7 @@ setnice(int pid, int nice)
   release(&ptable.lock);
   return -1;
 }
+
 
 
  // ready queue push function
