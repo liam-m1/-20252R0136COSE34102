@@ -318,7 +318,6 @@ copyuvm(pde_t *pgdir, uint sz)
   pde_t *d;
   pte_t *pte;
   uint pa, i, flags;
-  char *mem;
 
   if((d = setupkvm()) == 0)
     return 0;
@@ -328,10 +327,10 @@ copyuvm(pde_t *pgdir, uint sz)
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
 
-      // set page NOT writeable flags for parent
-    *pte &= ~PTE_W;  
-      
-      // copy flag from parent
+    // set pate not writeable flags for parent
+    *pte &= ~PTE_W;
+    
+    // copy flag from parent
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
 
@@ -339,9 +338,10 @@ copyuvm(pde_t *pgdir, uint sz)
     if(mappages(d, (void*)i, PGSIZE, pa, flags) < 0) {
       goto bad;
     }
+    // increment refcounter as child now references same page
+    inc_refcount(pa);
   }
-  // increment refcounter as child now references same page
-  inc_refcount(pa);
+  
   // flush tlb
   lcr3(V2P(pgdir));
   return d;
@@ -396,10 +396,36 @@ void
 page_fault(void)
 {
   uint va = rcr2();
+  char *mem;
+
   if(va < 0) {
     panic("Invalid access");
     return;
   }
+
+    // set pgdir to variable
+  pde_t *pgdir = myproc()->pgdir;
+
+  // walk to find pte for va
+  pte_t *pte = walkpgdir(pgdir, (void *) va, 0);
+
+  // assign physical address
+  uint pa = PTE_ADDR(*pte);
+
+  if (get_refcount(va) > 1) {
+    mem = kalloc();
+    memmove(mem, (char*)P2V(pa), PGSIZE);
+    dec_refcount(pa);
+  }
+  else {
+    inc_refcount(pa);
+    // set pages to writeable
+    *pte |= PTE_W;  
+  }
+  
+  lcr3(V2P(pgdir));
+
+  return;
   
 }
 
