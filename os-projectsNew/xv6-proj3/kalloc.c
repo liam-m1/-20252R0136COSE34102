@@ -81,6 +81,7 @@ kfree(char *v)
   kmem.freelist = r;
 
   pmem.num_free_pages++;
+  dec_refcount(r);
 
   if(kmem.use_lock)
     release(&kmem.lock);
@@ -101,6 +102,7 @@ kalloc(void)
     kmem.freelist = r->next;
 
   pmem.num_free_pages--;
+  inc_refcount(r);
 
   if(kmem.use_lock)
     release(&kmem.lock);
@@ -116,17 +118,22 @@ freemem(void)
 uint
 get_refcount(uint pa)
 {
-  return 0;
+    // return reference counter by shifting from physical address
+  return pmem.refcount[pa >> PGSHIFT];
 }
 
 void
 inc_refcount(uint pa)
 {
+    // incremenet refernece counter at physical address
+  pmem.refcount[pa >> PGSHIFT]++;
   return;
 }
 
 void  
 dec_refcount(uint pa)
 {
+    // decrement refernece counter at physical address
+  pmem.refcount[pa >> PGSHIFT]--;
   return;
 }
