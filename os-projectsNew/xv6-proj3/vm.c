@@ -327,11 +327,12 @@ copyuvm(pde_t *pgdir, uint sz)
     if(!(*pte & PTE_P))
       panic("copyuvm: page not present");
 
-    // set pate not writeable flags for parent
-    *pte &= ~PTE_W;
-    
-    // copy flag from parent
+    // set pte not writeable flags for parent
+    *pte = *pte & ~PTE_W;
+
+    // copy addr from parent
     pa = PTE_ADDR(*pte);
+    // copy flag from parent
     flags = PTE_FLAGS(*pte);
 
     // map to parents pages instead of duplicated mem
@@ -341,7 +342,6 @@ copyuvm(pde_t *pgdir, uint sz)
     // increment refcounter as child now references same page
     inc_refcount(pa);
   }
-  
   // flush tlb
   lcr3(V2P(pgdir));
   return d;
@@ -391,7 +391,6 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   }
   return 0;
 }
-
 void
 page_fault(void)
 {
@@ -403,31 +402,33 @@ page_fault(void)
     return;
   }
 
-    // set pgdir to variable
+  // set pgdir to variable
   pde_t *pgdir = myproc()->pgdir;
 
-  // walk to find pte for va
+    // walk to find pte for va
   pte_t *pte = walkpgdir(pgdir, (void *) va, 0);
 
   // assign physical address
   uint pa = PTE_ADDR(*pte);
 
-  if (get_refcount(va) > 1) {
+  // if multiple refrences, duplicate and allocate
+  if (get_refcount(pa) > 1) {
     mem = kalloc();
     memmove(mem, (char*)P2V(pa), PGSIZE);
     dec_refcount(pa);
+    // point pte to new page and set flags
+    *pte = V2P(mem) | PTE_P | PTE_U | PTE_W;
   }
-  else {
-    inc_refcount(pa);
+  else if(get_refcount(pa) == 1) {
     // set pages to writeable
-    *pte |= PTE_W;  
+    *pte = *pte | PTE_W;
   }
-  
-  lcr3(V2P(pgdir));
 
+  // flush tlb
+  lcr3(V2P(pgdir));
   return;
-  
 }
+
 
 //PAGEBREAK!
 // Blank page.
