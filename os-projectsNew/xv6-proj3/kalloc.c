@@ -71,17 +71,27 @@ kfree(char *v)
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
-  // Fill with junk to catch dangling refs.
-  memset(v, 1, PGSIZE);
-
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r = (struct run*)v;
-  r->next = kmem.freelist;
-  kmem.freelist = r;
 
-  pmem.num_free_pages++;
-  dec_refcount(r);
+  int refCount = get_refcount(V2P(v));
+
+  // if process is allocated, decrease reference count
+  if(refCount > 0) {
+    dec_refcount(V2P(v));
+    refCount--;
+  }
+
+  // if process has no more references, free
+  if(refCount == 0) {
+    // Fill with junk to catch dangling refs.
+    memset(v, 1, PGSIZE);
+
+    r = (struct run*)v;
+    r->next = kmem.freelist;
+    kmem.freelist = r;
+    pmem.num_free_pages++;
+  }
 
   if(kmem.use_lock)
     release(&kmem.lock);
@@ -98,12 +108,14 @@ kalloc(void)
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+
+  if(r) 
     kmem.freelist = r->next;
 
   pmem.num_free_pages--;
-  inc_refcount(r);
-
+  // when allocated, increase reference counter
+  inc_refcount(V2P(r));
+  
   if(kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
