@@ -372,8 +372,8 @@ iunlockput(struct inode *ip)
 static uint
 bmap(struct inode *ip, uint bn)
 {
-  uint addr, *a;
-  struct buf *bp;
+  uint addr, *a, ind;
+  struct buf *bp, *dbp;
 
   if(bn < NDIRECT){
     if((addr = ip->addrs[bn]) == 0)
@@ -393,6 +393,48 @@ bmap(struct inode *ip, uint bn)
       log_write(bp);
     }
     brelse(bp);
+    return addr;
+  }
+
+  // remove offset
+  bn -= NINDIRECT;
+
+  // for double indirect
+  if(bn < NDOUBLEINDIRECT){
+    // load double indirect block, allocaing if neccessary
+      // check if address next to indirect block is allocated (double indirect block)
+    if((addr = ip->addrs[NDIRECT + 1]) == 0)
+      // allocate block for double indirect
+      ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+    // read contents of double indirect block
+    dbp = bread(ip->dev, addr);
+    // set a to indirect block array 
+    a = (uint*)dbp->data;
+
+    // find indirect pointer index
+    ind = bn / NINDIRECT;
+    // find direct pointer index
+    bn %= NINDIRECT;
+    
+    // check (and set) if indirect pointer exists at block number
+    if((addr = a[ind]) == 0) {
+      a[ind] = addr = balloc(ip->dev);
+      log_write(dbp);
+    }
+
+    // read contnets of indirect block pointer
+    bp = bread(ip->dev, addr);
+    // set a to direct pointer block array
+    a = (uint*)bp->data;
+
+    // check (and set) if indirect pointer exists at block number
+    if((addr = a[bn]) == 0) {
+      a[bn] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+
+    brelse(bp);
+    brelse(dbp);
     return addr;
   }
 
